@@ -22,7 +22,13 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - uses: android-actions/setup-android@v3
+      # GitHub's Ubuntu machines come with the Android SDK preinstalled ($ANDROID_HOME).
+      # Make sure its licenses are accepted; the Android Gradle Plugin downloads anything missing.
+      - name: Accept Android SDK licenses
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          echo "Android SDK: $ANDROID_HOME"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
 
       - uses: gradle/actions/setup-gradle@v4
 
