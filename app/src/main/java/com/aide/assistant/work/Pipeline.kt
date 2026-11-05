@@ -18,6 +18,7 @@ import com.aide.core.model.Interaction
 import com.aide.core.model.ProcessingStatus
 import com.aide.core.model.SourceType
 import com.aide.core.stt.TranscriptionException
+import com.aide.core.time.LocalTimes
 import java.io.File
 import java.time.ZoneId
 
@@ -76,6 +77,8 @@ class Pipeline(private val context: Context) {
         } catch (e: BrainException) {
             return if (e.retryable && attempt < MAX_ATTEMPTS) retry(interaction, e.message) else fail(interaction, e.message)
         }
+
+        store.update { it.recordUsage(LocalTimes.isoDate(now), result.model, result.usage.inputTokens, result.usage.outputTokens) }
 
         // 3) Act on it.
         interaction = save(

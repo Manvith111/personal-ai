@@ -126,12 +126,28 @@ data class ResearchReport(
 )
 
 @Serializable
+enum class ReviewKind { DAILY, WEEKLY }
+
+/** An end-of-day (or end-of-week) review. For weekly reviews [date] is the last day of the week covered. */
+@Serializable
 data class DailyReview(
     val id: String,
     /** yyyy-MM-dd */
     val date: String,
     val markdown: String,
     val createdAt: Long,
+    val kind: ReviewKind = ReviewKind.DAILY,
+)
+
+/** Tokens spent on one model on one day (kept so the user can see what their own API key is being used for). */
+@Serializable
+data class UsageEntry(
+    /** yyyy-MM-dd */
+    val date: String,
+    val model: String,
+    val calls: Int = 0,
+    val inputTokens: Long = 0,
+    val outputTokens: Long = 0,
 )
 
 /** Everything the app stores, persisted as one JSON file. */
@@ -145,6 +161,7 @@ data class AppData(
     val processedAudio: List<String> = emptyList(),
     /** Call-log ids we already asked the user about (after-call check-in). */
     val checkedInCalls: List<String> = emptyList(),
+    val usage: List<UsageEntry> = emptyList(),
 ) {
     fun interaction(id: String) = interactions.firstOrNull { it.id == id }
     fun action(id: String) = actions.firstOrNull { it.id == id }
@@ -162,7 +179,34 @@ data class AppData(
         copy(research = listOf(r) + research.filterNot { it.id == r.id })
 
     fun upsert(r: DailyReview): AppData =
-        copy(reviews = listOf(r) + reviews.filterNot { it.date == r.date })
+        copy(reviews = listOf(r) + reviews.filterNot { it.date == r.date && it.kind == r.kind })
+
+    /** Adds one Claude call's token counts to today's tally for [model]. */
+    fun recordUsage(date: String, model: String, inputTokens: Long, outputTokens: Long): AppData {
+        val existing = usage.firstOrNull { it.date == date && it.model == model }
+        val updated = if (existing == null) {
+            usage + UsageEntry(date, model, 1, inputTokens, outputTokens)
+        } else {
+            usage.map {
+                if (it === existing) it.copy(
+                    calls = it.calls + 1,
+                    inputTokens = it.inputTokens + inputTokens,
+                    outputTokens = it.outputTokens + outputTokens,
+                ) else it
+            }
+        }
+        return copy(usage = updated.takeLast(MAX_USAGE_ENTRIES))
+    }
+
+    /** Total usage on or after [fromDate] (yyyy-MM-dd, compared as text). */
+    fun usageSince(fromDate: String): UsageEntry =
+        usage.filter { it.date >= fromDate }.fold(UsageEntry(fromDate, "all")) { acc, e ->
+            acc.copy(
+                calls = acc.calls + e.calls,
+                inputTokens = acc.inputTokens + e.inputTokens,
+                outputTokens = acc.outputTokens + e.outputTokens,
+            )
+        }
 
     fun markAudioProcessed(uri: String): AppData =
         copy(processedAudio = (processedAudio + uri).distinct().takeLast(MAX_REMEMBERED))
@@ -175,5 +219,8 @@ data class AppData(
         actions = actions.filterNot { it.interactionId == id },
     )
 
-    companion object { const val MAX_REMEMBERED = 1000 }
+    companion object {
+        const val MAX_REMEMBERED = 1000
+        const val MAX_USAGE_ENTRIES = 400
+    }
 }

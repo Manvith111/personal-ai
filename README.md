@@ -81,9 +81,18 @@ Open Aide - it starts on the **Settings** tab.
   in December"*, *"Lunch with Priya tomorrow 1pm at Social"*.
 - **Meetings in person:** tap **⏺ Meeting**, put the phone on the table, tap **Stop** at the end.
 - **WhatsApp voice notes, texts, emails:** use **Share → Aide** from any app.
-- **My list** tab: everything Aide is tracking - approvals, upcoming events, to-dos, notes.
+- **My list** tab: everything Aide is tracking - approvals, upcoming events, to-dos, notes. Tap
+  **Export … (.ics)** to save your events, reminders and to-dos as a calendar file you can import into
+  Google/Apple/Outlook calendar, or share.
 - **Research** tab: ask anything, read reports with sources.
-- **Review** tab: your daily reviews; tap **Review my day now** any time.
+- **Review** tab: your daily reviews; tap **Review my day now** any time, or **Review my week** for a
+  summary of the last 7 days (numbers, highlights, what is still open, what is coming next week).
+- **Ask Aide** (button on the Home screen): ask questions about your own history - *"What did Rahul say
+  about the price?"*, *"What's still pending for me?"*, *"What's my landlord's account number?"*. Aide
+  answers **only from what it recorded**, says so when it has no answer, and links to the conversations
+  the answer came from. It remembers the chat, so follow-ups like *"and by when do I send it?"* work.
+  Under the question box, tap a person's name for a **pre-call briefing**: your history with them, what
+  you each promised, what is overdue, and suggested talking points.
 
 Prefer to approve things first? In **Settings → What I do automatically**, switch off the
 automatic calendar / reminders / research and Aide will ask before each one.
@@ -98,6 +107,9 @@ Aide uses your own API keys, so you pay the providers directly:
   10-50 cents (it includes web searches). You can pick the cheaper **Claude Sonnet 5.5** or
   **Claude Haiku 5.5** in Settings. You can set a monthly spending limit in the Anthropic console.
 - **Groq Whisper:** free tier covers typical personal use.
+- Ask Aide, briefings and the weekly review each cost a fraction of a cent to a few cents (only the
+  relevant part of your history is sent, never everything). **Settings → Claude** shows this month's
+  calls and tokens used on your key.
 
 ## Privacy and the law
 
@@ -129,6 +141,15 @@ app/    Android (Kotlin + Jetpack Compose): call detection, recording finder, Wo
 ```
 
 - Build: `./gradlew :app:assembleDebug` (JDK 17, Android SDK 35). Tests: `./gradlew :core:test`.
+- **Live tests** (real Claude / Whisper APIs, with your own keys; skipped when a key is missing and
+  never run by `:core:test` or CI): `ANTHROPIC_API_KEY=... GROQ_API_KEY=... ./gradlew :core:liveTest`.
+  They default to the cheapest model; set `AIDE_LIVE_MODEL=claude-opus-5-5` to test the app default.
+  The speech tests synthesise audio with `ffmpeg` (needs the `flite` filter).
+- New in `core/`: `search/HistorySearch` (offline keyword search, Hindi-safe), `brain/HistoryContext`
+  (picks the relevant history for a question; all third-party text is sanitised), `AssistantBrain.ask /
+  briefing / weeklyReview`, `people/PeopleIndex`, `review/WeeklyLog` (week numbers computed in code, not
+  by the model), `export/IcsExporter` (RFC 5545), `Transcriber.transcribeDetailed` (language + timestamps),
+  and token `Usage` on every Claude result.
 - Pipeline: call ends → `CallStateReceiver` → `ScanWorker` finds the recording (MediaStore / chosen
   folder) and matches it to the call log → `ProcessWorker` → `Pipeline`: speech-to-text →
   `AssistantBrain.analyze` (Claude, JSON schema output) → `ActionExecutor` (CalendarContract,

@@ -14,6 +14,7 @@ import com.aide.assistant.work.ProcessWorker
 import com.aide.assistant.work.ResearchWorker
 import com.aide.assistant.work.ReviewWorker
 import com.aide.assistant.work.ScanWorker
+import com.aide.assistant.work.WeeklyReviewWorker
 import java.time.Duration
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -91,6 +92,17 @@ object Scheduler {
             OneTimeWorkRequestBuilder<ReviewWorker>()
                 .setConstraints(online)
                 .setInputData(workDataOf(ReviewWorker.KEY_MANUAL to true))
+                .build(),
+        )
+    }
+
+    /** The review of the last 7 days, started from the Review tab. */
+    fun weeklyReviewNow(context: Context) {
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            "review-week-now",
+            ExistingWorkPolicy.REPLACE,
+            OneTimeWorkRequestBuilder<WeeklyReviewWorker>()
+                .setConstraints(online)
                 .build(),
         )
     }

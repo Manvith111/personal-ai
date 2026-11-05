@@ -3,6 +3,7 @@ package com.aide.assistant.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -25,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import com.aide.assistant.Scheduler
 import com.aide.assistant.graph
 import com.aide.core.model.AppData
+import com.aide.core.model.ReviewKind
 
 @Composable
 fun ReviewScreen(data: AppData) {
@@ -47,10 +49,16 @@ fun ReviewScreen(data: AppData) {
                     else "The automatic daily review is turned off in Settings.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                FilledTonalButton(onClick = {
-                    Scheduler.reviewNow(context)
-                    toast(context, "Writing your review… I'll notify you")
-                }) { Text("Review my day now") }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilledTonalButton(onClick = {
+                        Scheduler.reviewNow(context)
+                        toast(context, "Writing your review… I'll notify you")
+                    }) { Text("Review my day now") }
+                    FilledTonalButton(onClick = {
+                        Scheduler.weeklyReviewNow(context)
+                        toast(context, "Writing your weekly review… I'll notify you")
+                    }) { Text("Review my week") }
+                }
             }
         }
         if (reviews.isEmpty()) {
@@ -61,7 +69,7 @@ fun ReviewScreen(data: AppData) {
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
                 Column(Modifier.padding(14.dp)) {
                     TextButton(onClick = { expanded = if (isOpen) "" else review.id }) {
-                        Text("🌙 " + review.date, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        Text((if (review.kind == ReviewKind.WEEKLY) "🗓 Week to " else "🌙 ") + review.date, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                     }
                     if (isOpen) Markdown(review.markdown)
                 }

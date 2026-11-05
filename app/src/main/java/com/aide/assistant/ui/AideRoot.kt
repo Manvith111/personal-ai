@@ -95,6 +95,7 @@ fun AideRoot(openRequests: MutableStateFlow<String?>) {
                     InteractionScreen(d.removePrefix("interaction:"), data, onBack = { detail = null }, onOpen = { detail = it })
                 d != null && d.startsWith("research:") ->
                     ResearchDetailScreen(d.removePrefix("research:"), data, onBack = { detail = null })
+                d == "ask" -> AskScreen(data, onBack = { detail = null }, onOpen = { detail = it })
                 else -> when (tab) {
                     Tab.HOME -> HomeScreen(
                         data = data,

@@ -84,6 +84,7 @@ fun SettingsScreen() {
     val context = LocalContext.current
     val settings = context.graph.settings
     val version by settings.version.collectAsStateWithLifecycle()
+    val appData by context.graph.store.state.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     var refresh by remember { mutableIntStateOf(0) }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { refresh++ }
@@ -157,6 +158,15 @@ fun SettingsScreen() {
                         }
                     },
                 ) { Text(if (testing) "Testing…" else "Test connection") }
+                val month = appData.usageSince(java.time.LocalDate.now().withDayOfMonth(1).toString())
+                if (month.calls > 0) {
+                    Text(
+                        "This month on your key: ${month.calls} Claude calls, " +
+                            "${"%,d".format(month.inputTokens)} tokens in, ${"%,d".format(month.outputTokens)} out.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
 

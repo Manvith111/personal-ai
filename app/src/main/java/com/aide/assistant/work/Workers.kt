@@ -5,15 +5,19 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.aide.assistant.Notifier
 import com.aide.assistant.Scheduler
+import com.aide.assistant.actions.CalendarHelper
 import com.aide.assistant.calls.CallLogHelper
 import com.aide.assistant.calls.RecordingFinder
 import com.aide.assistant.graph
 import com.aide.core.brain.BrainException
+import com.aide.core.brain.OwnerProfile
 import com.aide.core.model.ActionStatus
 import com.aide.core.model.DailyReview
 import com.aide.core.model.Interaction
 import com.aide.core.model.ResearchStatus
+import com.aide.core.model.ReviewKind
 import com.aide.core.model.SourceType
+import com.aide.core.review.WeeklyLog
 import com.aide.core.time.LocalTimes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -55,6 +59,9 @@ class ResearchWorker(context: Context, params: WorkerParameters) : CoroutineWork
         }
         try {
             val result = brain.research(report.question, researchContext)
+            store.update {
+                it.recordUsage(LocalTimes.isoDate(System.currentTimeMillis()), result.model, result.usage.inputTokens, result.usage.outputTokens)
+            }
             val done = report.copy(
                 status = ResearchStatus.DONE, markdown = result.markdown, sources = result.sources,
                 finishedAt = System.currentTimeMillis(), modelUsed = result.model, error = null,
@@ -192,4 +199,50 @@ class ReviewWorker(context: Context, params: WorkerParameters) : CoroutineWorker
     }
 
     companion object { const val KEY_MANUAL = "manual" }
+}
+
+/** Writes the end-of-week review (the last 7 days). Started by the user from the Review tab. */
+class WeeklyReviewWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
+    override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
+        val ctx = applicationContext
+        val graph = ctx.graph
+        val settings = graph.settings
+        val brain = graph.brain() ?: run {
+            postNotice(ctx, "🗓 Aide needs your Claude key", "Add your Anthropic API key in Settings to get a weekly review.")
+            return@withContext Result.failure()
+        }
+        val zone = java.time.ZoneId.systemDefault()
+        val now = System.currentTimeMillis()
+        val upcoming = CalendarHelper.upcoming(ctx, now, now + 8 * 24 * 60 * 60 * 1000L)
+        val log = WeeklyLog.build(
+            graph.store.data, OwnerProfile(settings.userName, settings.outputLanguage, settings.region), zone, now, upcoming,
+        )
+        if (log == null) {
+            postNotice(ctx, "🗓 Nothing to review yet", "No conversations or actions in the last 7 days.")
+            return@withContext Result.success()
+        }
+        try {
+            val result = brain.weeklyReview(log)
+            val date = LocalTimes.isoDate(now, zone)
+            graph.store.update {
+                it.upsert(DailyReview(UUID.randomUUID().toString(), date, result.markdown, now, ReviewKind.WEEKLY))
+                    .recordUsage(date, result.model, result.usage.inputTokens, result.usage.outputTokens)
+            }
+            val preview = result.markdown.lineSequence().map { it.trim() }
+                .firstOrNull { it.isNotEmpty() && !it.startsWith("#") } ?: "Tap to read."
+            postNotice(ctx, "🗓 Your week, reviewed", preview.replace("**", ""))
+            Result.success()
+        } catch (e: BrainException) {
+            if (e.retryable && runAttemptCount < 3) {
+                Result.retry()
+            } else {
+                postNotice(ctx, "🗓 Couldn't write your weekly review", e.message ?: "Unknown error")
+                Result.failure()
+            }
+        }
+    }
+
+    private fun postNotice(ctx: Context, title: String, text: String) {
+        Notifier.show(ctx, 7101, Notifier.base(ctx, Notifier.CH_REVIEW, title, text).setContentIntent(Notifier.openAppIntent(ctx, "review")))
+    }
 }

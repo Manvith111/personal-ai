@@ -204,6 +204,12 @@ fun HomeScreen(
             }
         }
 
+        item {
+            OutlinedButton(onClick = { onOpen("ask") }, modifier = Modifier.fillMaxWidth()) {
+                Text("💬 Ask Aide about your conversations")
+            }
+        }
+
         item { TodayStrip(data, onOpen) }
 
         item { SectionTitle("Recent") }
